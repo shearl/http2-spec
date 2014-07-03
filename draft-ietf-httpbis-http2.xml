@@ -564,10 +564,12 @@ HTTP2-Settings    = token68
   0                   1                   2                   3
   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- | R |     Length (14)           |   Type (8)    |   Flags (8)   |
+ |J|R|      Length (14)          |   Type (8)    |   Flags (8)   |
  +-+-+-----------+---------------+-------------------------------+
  |R|                 Stream Identifier (31)                      |
  +=+=============================================================+
+ |                    Jumbo Length? (32)                         |
+ +---------------------------------------------------------------+
  |                   Frame Payload (0...)                      ...
  +---------------------------------------------------------------+
 ]]></artwork>
@@ -575,9 +577,14 @@ HTTP2-Settings    = token68
         <t>
           The fields of the frame header are defined as:
           <list style="hanging">
+            <x:lt hangText="J:">
+              <t>
+                A single bit flag indicates that the Jumbo Length field is present.
+              </t>
+            </x:lt>
             <x:lt hangText="R:">
               <t>
-                A reserved 2-bit field.  The semantics of these bits are undefined and the bits MUST
+                A reserved 1-bit field.  The semantics of this bit is undefined and the bit MUST
                 remain unset (0) when sending and MUST be ignored when receiving.
               </t>
             </x:lt>
@@ -585,6 +592,8 @@ HTTP2-Settings    = token68
               <t>
                 The length of the frame payload expressed as an unsigned 14-bit integer. The 8
                 octets of the frame header are not included in this value.
+                If the J flag is set, these bits MUST remain unset (0) when sending
+                and MUST be ignored when receiving.
               </t>
             </x:lt>
             <x:lt hangText="Type:">
@@ -617,6 +626,13 @@ HTTP2-Settings    = token68
                 an individual stream.
               </t>
             </x:lt>
+            <x:lt hangText="Jumbo Length:">
+              <t>
+                The length of the frame payload expressed as an unsigned 32-bit integer. The 8
+                octets of the frame header are not included in this value. The 4 octets of this
+                field are included.  This field is optional and is only present if the J flag is set.
+              </t>
+            </x:lt>
           </list>
         </t>
         <t>
@@ -626,24 +642,60 @@ HTTP2-Settings    = token68
 
       <section anchor="FrameSize" title="Frame Size">
         <t>
-          The maximum size of a frame payload varies by frame type. The absolute maximum size of a
-          frame payload is 2<x:sup>14</x:sup>-1 (16,383) octets, meaning that the maximum frame
-          size is 16,391 octets. All implementations MUST be capable of receiving and minimally
-          processing frames up to this maximum size.
+          The maximum size of a frame payload varies by <xref target="frame-types">frame type
+          </xref>. Additionally, the maximum payload size a peer is willing to receive can be 
+          altered by the settings <x:ref>SETTINGS_FRAME_SIZE</x:ref> and/or 
+          <x:ref>SETTINGS_HEADER_FRAME_SIZE</x:ref>.
         </t>
-        <t>
-          Certain frame types, such as <xref target="PING">PING</xref>, impose additional limits on
-          the amount of payload data allowed.
-        </t>
-        <t>
-          If a frame size exceeds any defined limit, or is too small to contain mandatory frame
-          data, the endpoint MUST send a <x:ref>FRAME_SIZE_ERROR</x:ref> error. A frame size error
-          in a frame that could alter the state of the entire connection MUST be treated as a <xref
-          target="ConnectionErrorHandler">connection error</xref>; this includes any frame carrying
-          a <xref target="HeaderBlock">header block</xref> (that is, <x:ref>HEADERS</x:ref> or
-          <x:ref>PUSH_PROMISE</x:ref>), <x:ref>SETTINGS</x:ref>,
-          and any <x:ref>WINDOW_UPDATE</x:ref> frame with a stream identifier of 0.
-        </t>
+        <section anchor="RegularFrames" title="Regular Size Frames">
+          <t>
+            The maximum payload size of a regular frame is 2<x:sup>14</x:sup>-1 (16,383) 
+            octets, meaning that the maximum size of a regular frame is 16,391 octets. This is 
+            the default frame size for the settings <x:ref>SETTINGS_FRAME_SIZE</x:ref> and 
+            <x:ref>SETTINGS_HEADER_FRAME_SIZE</x:ref>.
+            All implementations MUST be capable of receiving and minimally processing frames up 
+            to this size.
+          </t>
+          <t>
+            The maximum payload size of a regular frame is optimized for stream multiplexing and
+            ought to be used for most cases. 
+          </t>
+        </section>
+        <section anchor="JumboFrames" title="Jumbo Size Frames">
+          <t>            
+            In some cases it may be useful for implementations to optimize the frame size for 
+            particular network conditions or other factors. In other cases it may be useful to 
+            send payloads much larger than 2<x:sup>14</x:sup>-1 (16,383) octets at the cost of 
+            multiplexing efficiency. For these cases, jumbo frames ought to be used. 
+          </t>
+          <t>
+            The maximum payload size of a jumbo frame is 2<x:sup>32</x:sup>-1 (4,294,967,29516,38) 
+            octets, meaning that the maximum size of a jumbo frame is 4,294,967,29516,46 octets.            
+            A peer can express its willingness to accept jumbo frames implicitly by setting
+            the <x:ref>SETTINGS_FRAME_SIZE</x:ref> and/or <x:ref>SETTINGS_HEADER_FRAME_SIZE</x:ref>
+            parameters (see <xref target="SettingValues"/>) within a <x:ref>SETTINGS</x:ref> frame,
+            to a value larger than 2<x:sup>14</x:sup>-1 (16,383) octets.
+          </t>
+        </section>
+        <section title="Additional Frame Size Considerations">
+          <t>
+            If a frame size exceeds any defined limit, or is too small to contain mandatory frame
+            data, the endpoint MUST send a <x:ref>FRAME_SIZE_ERROR</x:ref> error. A frame size error
+            in a frame that could alter the state of the entire connection MUST be treated as a <xref
+            target="ConnectionErrorHandler">connection error</xref>; this includes any frame carrying
+            a <xref target="HeaderBlock">header block</xref> (that is, <x:ref>HEADERS</x:ref> or
+            <x:ref>PUSH_PROMISE</x:ref>), <x:ref>SETTINGS</x:ref>,
+            and any <x:ref>WINDOW_UPDATE</x:ref> frame with a stream identifier of 0.
+          </t>
+          <t>
+            <list style="hanging">
+              <t hangText="Note:">
+                Certain frame types, such as <xref target="PING">PING</xref>, impose additional limits on
+                the amount of payload data allowed.
+              </t>
+            </list>
+          </t>
+        </section>
       </section>
 
       <section anchor="HeaderBlock" title="Header Compression and Decompression">
@@ -685,9 +737,7 @@ HTTP2-Settings    = token68
         </t>
         <t>
           A header block MUST fit within a single <x:ref>HEADERS</x:ref> or 
-          <x:ref>PUSH_PROMISE</x:ref> frame. An extension will be published that will allow 
-          HTTP/2 hops to negotiate the use of larger header blocks 
-          (see <xref target="extensibility"/>).
+          <x:ref>PUSH_PROMISE</x:ref> frame.
         </t>
         <t>
           Header compression is stateful, using a single compression context for the entire
@@ -1701,9 +1751,7 @@ HTTP2-Settings    = token68
         <t>
           The payload of a HEADERS frame contains a <xref target="HeaderBlock">header block
           </xref>.
-          The header block MUST fit within a single <x:ref>HEADERS</x:ref> frame. An extension will 
-          be published that will allow HTTP/2 hops to negotiate the use of larger header blocks 
-          (see <xref target="extensibility"/>).
+          The header block MUST fit within a single <x:ref>HEADERS</x:ref> frame.
         </t>
 
         <t>
@@ -1970,6 +2018,41 @@ HTTP2-Settings    = token68
                   Values above the maximum flow control window size of 2<x:sup>31</x:sup> - 1 MUST
                   be treated as a <xref target="ConnectionErrorHandler">connection error</xref> of
                   type <x:ref>FLOW_CONTROL_ERROR</x:ref>.
+                </t>
+              </x:lt>
+              <x:lt hangText="SETTINGS_FRAME_SIZE (0x4):" anchor="SETTINGS_FRAME_SIZE">
+                <t>
+                  Indicates the frame payload size (in bytes) the sender is currently willing 
+                  to accept for all frame types , except <x:ref>HEADERS</x:ref> frames.
+                  The initial value is 2<x:sup>14</x:sup>-1 (16,383) octets, 
+                  or the maximum payload size of a regular frame.  
+                  Any value larger than 16,383 octets implicitly indicates the sender's 
+                  willingness to accept jumbo frames for all frame types except 
+                  <x:ref>HEADERS</x:ref> frames.
+                </t>
+                <t>
+                  This setting affects the frame payload size of all frame types except for 
+                  <x:ref>HEADERS</x:ref> frames, which are restricted by their own setting
+                  <x:ref>SETTINGS_HEADER_FRAME_SIZE</x:ref>. This setting also affects 
+                  all extension frame types including known extensions and yet-to-be-defined
+                  extensions.
+                </t>
+              </x:lt>
+              <x:lt hangText="SETTINGS_HEADER_FRAME_SIZE (0x4):" anchor="SETTINGS_HEADER_FRAME_SIZE">
+                <t>
+                  Indicates the frame payload size (in bytes) the sender is currently willing to 
+                  accept for <x:ref>HEADERS</x:ref> frames.
+                  The initial value is 2<x:sup>14</x:sup>-1 (16,383) octets, 
+                  or the maximum payload size of a regular frame.  
+                  Any value larger than 16,383 octets implicitly indicates the sender's 
+                  willingness to accept jumbo frames for <x:ref>HEADERS</x:ref>.
+                </t>
+                <t>
+                  This setting only affects the frame payload size of <x:ref>HEADERS</x:ref> 
+                  frames. All other frame types are restricted in payload size by the setting
+                  <x:ref>SETTINGS_HEADER_FRAME_SIZE</x:ref>
+                  the window size of all streams, including existing streams,
+                  see <xref target="InitialWindowSize"/>.
                 </t>
               </x:lt>
             </list>
