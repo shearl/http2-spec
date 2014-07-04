@@ -89,7 +89,7 @@ transported more efficiently.
 
 Large Frame Header
 ------------------
-This proposals adds increases the length field in the frame header to 
+This proposals increases the length field in the frame header to 
 31 bits.  
 
 While it was originally considered to add an optional Large Frame type with
