@@ -705,7 +705,10 @@ HTTP2-Settings    = token68
 	      </t>
 	    </list>
 	      
-            The minimum payload size is 0.
+            The minimum payload size of a Large Frame is 2<x:sup>14</x:sup> (16,384). A sender MUST NOT
+	    use a Large Frame when the payload can be sent using a regular frame. A receiver MUST 
+	    treat the receipt of a Large Frame of less than  2<x:sup>14</x:sup> (16,384) octets as 
+	    a <xref target="ConnectionErrorHandler">connection error</xref> of type <x:ref>PROTOCOL_ERROR</x:ref>. 
           </t>
         </section>
         <section title="Additional Frame Size Considerations">
