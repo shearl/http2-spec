@@ -564,11 +564,11 @@ HTTP2-Settings    = token68
   0                   1                   2                   3
   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- |J|R|      Length (14)          |   Type (8)    |   Flags (8)   |
+ |R|L|      Length (14)          |   Type (8)    |   Flags (8)   |
  +-+-+-----------+---------------+-------------------------------+
  |R|                 Stream Identifier (31)                      |
  +-+-------------------------------------------------------------+
- |R|                  Jumbo Length? (31)                         |
+ |R|                  Large Length? (31)                         |
  +=+=============================================================+
  |                   Frame Payload (0...)                      ...
  +---------------------------------------------------------------+
@@ -577,15 +577,15 @@ HTTP2-Settings    = token68
         <t>
           The fields of the frame header are defined as:
           <list style="hanging">
-            <x:lt hangText="J:">
-              <t>
-                A single bit flag indicates that the Jumbo Length field is present.
-              </t>
-            </x:lt>
             <x:lt hangText="R:">
               <t>
                 A reserved 1-bit field.  The semantics of this bit is undefined and the bit MUST
                 remain unset (0) when sending and MUST be ignored when receiving.
+              </t>
+            </x:lt>
+            <x:lt hangText="L:">
+              <t>
+                A single bit flag indicates that the Large Length field is present.
               </t>
             </x:lt>
             <x:lt hangText="Length:">
@@ -632,11 +632,11 @@ HTTP2-Settings    = token68
                 remain unset (0) when sending and MUST be ignored when receiving.
               </t>
             </x:lt>
-            <x:lt hangText="Jumbo Length:">
+            <x:lt hangText="Large Length:">
               <t>
                 The length of the frame payload expressed as an unsigned 31-bit integer. The 8
                 octets of the frame header and the 4 octets of this field are not included in
-                this value. This field is optional and is only present if the J flag is set.
+                this value. This field is optional and is only present if the L flag is set.
               </t>
             </x:lt>
           </list>
@@ -650,8 +650,20 @@ HTTP2-Settings    = token68
         <t>
           The maximum size of a frame payload varies by <xref target="frame-types">frame type
           </xref>. Additionally, the maximum payload size a peer is willing to receive can be 
-          altered by the settings <x:ref>SETTINGS_FRAME_SIZE</x:ref> and/or 
-          <x:ref>SETTINGS_HEADER_FRAME_SIZE</x:ref>.
+          altered by any/all of:
+            <list style="symbols">
+	      <t>
+                the <x:ref>SETTINGS_FRAME_SIZE</x:ref> parameter within a 
+		<x:ref>SETTINGS</x:ref> frame (see <xref target="SettingValues"/>),
+	      </t>
+	      <t>
+                the <x:ref>SETTINGS_HEADER_FRAME_SIZE</x:ref> parameter within a 
+		<x:ref>SETTINGS</x:ref> frame (see <xref target="SettingValues"/>),
+	      </t>
+	      <t>
+	        the Max Frame Size field in a <x:ref>WINDOW_UPDATE</x:ref> frame (see <xref target="MaxFrameSize"/>).
+	      </t>
+	    </list>
         </t>
         <section anchor="RegularFrames" title="Regular Size Frames">
           <t>
@@ -666,7 +678,7 @@ HTTP2-Settings    = token68
             ought to be used for most cases. 
           </t>
         </section>
-        <section anchor="JumboFrames" title="Jumbo Size Frames">
+        <section anchor="LargeFrames" title="Large Size Frames">
           <t>            
             In some cases it may be useful for implementations to optimize the frame size for 
             particular network conditions or other factors. In such cases, the optimum frame
@@ -675,13 +687,28 @@ HTTP2-Settings    = token68
             efficiency. 
           </t>
           <t>
-            The maximum payload size of a jumbo frame is 2<x:sup>31</x:sup>-1 (2,147,483,647) 
-            octets, meaning that the maximum size of a jumbo frame is 2,147,483,659 octets.            
-            A peer can express its willingness to accept jumbo frames implicitly by setting
-            the <x:ref>SETTINGS_FRAME_SIZE</x:ref> and/or <x:ref>SETTINGS_HEADER_FRAME_SIZE</x:ref>
-            parameters (see <xref target="SettingValues"/>) within a <x:ref>SETTINGS</x:ref> frame,
-            to a value larger than 2<x:sup>14</x:sup>-1 (16,383) octets. The minimum payload
-            size is 0.
+            The maximum payload size of a large frame is 2<x:sup>31</x:sup>-1 (2,147,483,647) 
+            octets, meaning that the maximum size of a large frame is 2,147,483,659 octets.            
+            A peer can express its willingness to accept large frames by setting
+	    a value larger than 2<x:sup>14</x:sup>-1 (16,383) octets in any/all of:
+            <list style="symbols">
+	      <t>
+                the <x:ref>SETTINGS_FRAME_SIZE</x:ref> parameter within a 
+		<x:ref>SETTINGS</x:ref> frame (see <xref target="SettingValues"/>),
+	      </t>
+	      <t>
+                the <x:ref>SETTINGS_HEADER_FRAME_SIZE</x:ref> parameter within a 
+		<x:ref>SETTINGS</x:ref> frame (see <xref target="SettingValues"/>),
+	      </t>
+	      <t>
+	        the Max Frame Size field in a <x:ref>WINDOW_UPDATE</x:ref> frame (see <xref target="MaxFrameSize"/>).
+	      </t>
+	    </list>
+	      
+            The minimum payload size of a Large Frame is 2<x:sup>14</x:sup> (16,384). A sender MUST NOT
+	    use a Large Frame when the payload can be sent using a regular frame. A receiver MUST 
+	    treat the receipt of a Large Frame of less than  2<x:sup>14</x:sup> (16,384) octets as 
+	    a <xref target="ConnectionErrorHandler">connection error</xref> of type <x:ref>PROTOCOL_ERROR</x:ref>. 
           </t>
         </section>
         <section title="Additional Frame Size Considerations">
@@ -2037,7 +2064,7 @@ HTTP2-Settings    = token68
                   or the maximum payload size of a <xref target="RegularFrames">
                   regular frame</xref>.
                   Any value larger than 16,383 octets implicitly indicates the sender's 
-                  willingness to accept <xref target="JumboFrames">jumbo frames</xref> 
+                  willingness to accept <xref target="LargeFrames">large frames</xref> 
                   for all frame types except <x:ref>HEADERS</x:ref> frames.
                   The acceptable range of values is between 256 and 2<x:sup>31</x:sup>-1.
                   Values outside the acceptable range MUST be treated as a 
@@ -2062,7 +2089,7 @@ HTTP2-Settings    = token68
                   or the maximum payload size of a <xref target="RegularFrames">
                   regular frame</xref>.
                   Any value larger than 16,383 octets implicitly indicates the sender's 
-                  willingness to accept <xref target="JumboFrames">jumbo frames</xref> 
+                  willingness to accept <xref target="LargeFrames">large frames</xref> 
                   for <x:ref>HEADERS</x:ref>.
                   The acceptable range of values is between 256 and 2<x:sup>31</x:sup>-1.
                   Values outside the acceptable range MUST be treated as a 
@@ -2442,16 +2469,41 @@ HTTP2-Settings    = token68
  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  |R|              Window Size Increment (31)                     |
  +-+-------------------------------------------------------------+
+ |R|                 Max Frame Size? (31)                        |
+ +-+-------------------------------------------------------------+
 ]]></artwork>
         </figure>
         <t>
-          The payload of a WINDOW_UPDATE frame is one reserved bit, plus an unsigned 31-bit integer
-          indicating the number of bytes that the sender can transmit in addition to the existing
-          flow control window.  The legal range for the increment to the flow control window is 1 to
-          2<x:sup>31</x:sup> - 1 (0x7fffffff) bytes.
-        </t>
+          The WINDOW_UPDATE frame payload has the following fields:
+          <list style="hanging">
+            <t hangText="R:">
+	      A Reserved bit.
+            </t>
+	    <t hangText="Window Size Increment:">
+	      An unsigned 31-bit integer indicating the number of bytes that the sender can transmit in addition to the existing
+	      flow control window.  The legal range for the increment to the flow control window is 1 to
+	      2<x:sup>31</x:sup> - 1 (0x7fffffff) bytes.
+	    </t>
+            <t hangText="R:">
+	      A Reserved bit, which is present only if the FRAME_SIZE flag is set.
+            </t>
+	    <t hangText="Max Frame Size:">
+	      An optional unsigned 31-bit integer which is present only if the FRAME_SIZE flag is set,
+	      indicating the maximum frame size in octets that the sender can use to transmit frames
+	      on this stream.  The legal range for the increment to the flow control window is 1 to
+	      2<x:sup>31</x:sup> - 1 (0x7fffffff) bytes. This value overrides the SETTINGS_FRAME_SIZE 
+	      set for the connection.
+	    </t>
+	  </list>
+	</t>
         <t>
-          The WINDOW_UPDATE frame does not define any flags.
+          The WINDOW_UPDATE frame defines the following flags:
+          <list style="hanging">
+            <t hangText="FRAME_SIZE (0x1):">
+              Bit 1 being set indicates that this WINDOW_UPDATE frame contains a Max Data Frame Size field. 
+	      This flag MUST NOT be set on a WINDOW_UPDATE with a stream ID of 0.
+            </t>
+          </list>
         </t>
         <t>
           The WINDOW_UPDATE frame can be specific to a stream or to the entire connection.  In the
@@ -2586,6 +2638,52 @@ HTTP2-Settings    = token68
               </t>
             </list>
           </t>
+        </section>
+        <section anchor="MaxFrameSize" title="Setting the Stream Max Frame Size">
+	  <t>
+	    A receiver that wishes to receive data in frame sizes in a specific stream 
+	    that are different to SETTINGS_FRAME_SIZE for the connection, can send a Max Frame Size field in 
+	    a WINDOW_UPDATE frame to indicate the size of frame that it wishes to 
+	    receive in that stream. 
+	  </t>
+	  <t>
+	    A sender that receives a Max Frame Size field can send frames on the indicated stream 
+	    with lengths that:
+	    <list style="symbols">
+	      <t>MAY exceed the SETTINGS_FRAME_SIZE if the Max Frame Size is larger.</t>
+	      <t>SHOULD NOT exceed the Max Frame Size even if the SETTINGS_FRAME_SIZE is larger.</t>
+	      <t>MUST NOT exceed the connection flow control window size.</t>
+	      <t>MUST NOT exceed the stream flow control window size.</t>
+	      <t>MUST NOT exceed the larger of the SETTINGS_FRAME_SIZE and the Max Frame Size.</t>
+	    </list>
+	  </t>
+	  <t>
+	    A sender MAY choose to ignore a received Max Frame Size, thus a receiver MUST always be 
+	    prepared to receive a frame up to the size set in the SETTINGS_FRAME_SIZE for the 
+	    connection (or the default if not set), even if it has sent a Max Frame Size field 
+	    that is smaller.
+	  </t>
+	  <t>
+	    Increasing frame size may increase the efficiency of data transport 
+	    for a single stream at the cost of quality of service of multiplexing multiple 
+	    streams. This document does not stipulate if or how a receiver decides to change the 
+	    Max Frame Size for a stream, but implementations that do MAY consider in their algorithm:
+            <list style="symbols">
+              <t>
+	        The number of streams currently open or reserved.
+              </t>
+	      <t>
+	        The priority of the stream contents in relation to any other open or reserved streams.
+	      </t>
+	      <t>
+	        The content-length of the stream.
+	      </t>
+	      <t>
+	        Latency and throughput estimates derived from the timing of the frames previously received on
+		the stream.
+	      </t>
+	    </list>
+	  </t>
         </section>
       </section>
     </section>
