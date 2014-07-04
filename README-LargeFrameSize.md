@@ -66,6 +66,13 @@ indicated that end points communicated over high capacity, low latency
 networks can achieve satisfactory multiplexing quality of service with
 large frame sizes.
 
+It has also been noted that 16KB is near the middle of the peak of the
+current HTTP Object size histogram, so that a small change in the frame 
+size may have a significant impact on the number of HTTP messages that 
+can be sent in a single frame, without significant impacts on QoS. The
+HTTP Object size histogram has changed signifcantly over time and is 
+expected to continue to do so.
+
 Allowing the http2 protocol to adjust the maximum frame size set will
 future proof the protocol as well as allow it to be optimized for current
 special cases.  By providing reasonable defaults, a variable maximum frame
@@ -82,14 +89,17 @@ transported more efficiently.
 
 Large Frame Header
 ------------------
-This proposals adds an optional 31 bit Large Frame length field to the
-frame header.
+This proposals increases the length field in the frame header to 
+31 bits.  
 
-To avoid two length mechanisms, it would be have been possible to simply 
-increase the current length field to 31bits.   However, it was deemed that
-the current implementors wish to limit change.  Furthermore, having an
-optional large length field allows for simple implementations that do
-not wish to support variable max field lengths.  
+While it was originally considered to add an optional Large Frame type with
+and extension length field, it was deemed needlessly complex.  While there
+is a desire by current implementors to avoid change, the simplicity of the
+result should overcome implementor enertia.
+
+Furthermore, one criticism of continuations is that it requires 2 mechanisms
+be implemented depending on payload size. Having 2 length mechanisms, whilst
+simpler, would also suffers from this issue.
 
 It is also true that a 31 bit large frame length is also an arbitrary 
 limit to the size of a frame. However, it is beleived that 31 bits is
@@ -160,6 +170,11 @@ choices:
  * Medium frame. The client can momentarily trade some QoS by an
    estimated duration by increasing the frame size to something >16KB 
    and < content-length
+
+ * Sufficient frame.  If the remaining content is only a small increment
+   over the current SETTING_FRAME_SIZE, the Max Frame Size can be increased
+   to receive the remaining content in a single frame without any 
+   significant QoS impact.
 
 
 Minimal Compliance
