@@ -564,7 +564,7 @@ HTTP2-Settings    = token68
   0                   1                   2                   3
   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- |L|R|      Length (14)          |   Type (8)    |   Flags (8)   |
+ |R|L|      Length (14)          |   Type (8)    |   Flags (8)   |
  +-+-+-----------+---------------+-------------------------------+
  |R|                 Stream Identifier (31)                      |
  +-+-------------------------------------------------------------+
@@ -577,15 +577,15 @@ HTTP2-Settings    = token68
         <t>
           The fields of the frame header are defined as:
           <list style="hanging">
-            <x:lt hangText="L:">
-              <t>
-                A single bit flag indicates that the Large Length field is present.
-              </t>
-            </x:lt>
             <x:lt hangText="R:">
               <t>
                 A reserved 1-bit field.  The semantics of this bit is undefined and the bit MUST
                 remain unset (0) when sending and MUST be ignored when receiving.
+              </t>
+            </x:lt>
+            <x:lt hangText="L:">
+              <t>
+                A single bit flag indicates that the Large Length field is present.
               </t>
             </x:lt>
             <x:lt hangText="Length:">
