@@ -47,73 +47,69 @@ criticism of the CONTINUATION design, including:
    far simpler to meet the requirement of large headers by supporting
    large frames.
 
-This proposal is to alter the http2 protocol so that it can meet the
-requirement of sending large headers by supporting large frames sizes.
-The advantages of this approach is that not only does it address
-the criticims of the CONTINUATION design, but that it also addresses
-additional issues raised against the http2 specification.
+
+This proposal has been prepared as it is possible to meet the requirements
+of CONTINUATIONS without the complications and criticisms above.
+
+> This propossal addresses the issue of sending/receivign large HTTP 
+> headers without giving endpoints and intermediaries unlimited 
+> resource commitments nor unknown limits
+
 
 Additional Frame Size Issues Addressed
 --------------------------------------
 The current draft (13) has maximume frame size of 16KB, which is an
 arbitrary value that has been selected on the basis of experience to
 provide a reasonable compromise between the efficiency of transmitting
-data vs the quality of service for multiplexed channels.  Whilst this
-educated guess may be near optimal for todays networks and traffic,
-it is entirely possible that some current and/or future networks may
-require a different value to achieve an optimal balance.  It is already
-indicated that end points communicated over high capacity, low latency
-networks can achieve satisfactory multiplexing quality of service with
-large frame sizes.
+data vs the quality of service for multiplexed channels.  
+
+Whilst this educated guess may be near optimal for todays networks 
+and traffic, it is entirely possible that some current and/or future 
+networks may require a different value to achieve an optimal balance.  
+There have already been proposals [1] put to the WG to reduce the 
+frame size for slower networks, as well as discussion that 
+high capacity, low latency networks can achieve satisfactory multiplexing 
+quality of service with large frame sizes. 
+
+> This proposal addresses the issue of having a fixed frame size for 
+> tuning of multiplexing performance based on current/future experience.
 
 It has also been noted that 16KB is near the middle of the peak of the
-current HTTP Object size histogram, so that a small change in the frame 
+current HTTP Object size histogram [2], so that a small change in the frame 
 size may have a significant impact on the number of HTTP messages that 
 can be sent in a single frame, without significant impacts on QoS. The
 HTTP Object size histogram has changed signifcantly over time and is 
 expected to continue to do so.
 
-Allowing the http2 protocol to adjust the maximum frame size set will
-future proof the protocol as well as allow it to be optimized for current
-special cases.  By providing reasonable defaults, a variable maximum frame
-size does not need to increase the complexity of a minimal implementation.
-
-Furthermore, whilst a specific maximum frame size may apply to the general
-situations of multiple multiplexed streams, there can be specific 
-special cases where an end point knows that only a single stream is likely
-to be required for the imminent future, or that a particular stream is of
-high priority.  In such cases, it may be desirable to increase the 
-maximum frame size for that specific stream, so that it may be 
-transported more efficiently.
+> This proposal addresses the issue of tuning the frame size based on
+> experience of actual payload sizes.
 
 
-Large Frame Header
-------------------
+There have also been issues raised that a 16KB frame size does not allow
+efficient data transfer [3] even when the end points are awway that only
+a single stream is likely to be required for the imminent future, or 
+that a particular stream is of high priority.  
+
+> This proposal addresse the issue of tuning the frame size for transport
+> efficiency for specific streams in specific situations.
+
+
+
+Large Frame Header Proposal
+---------------------------
+This proposal is to alter the core http2 protocol so that addresses 
+the issues identified above by supporting a large frame size that
+will have variable size limits applied.
+
 This proposals increases the length field in the frame header to 
-31 bits.  
+31 bits, to match the maximum flow control window size.  However,
+implementations will not be able to use the full frame size without
+explicit concent from peers.
 
-While it was originally considered to add an optional Large Frame type with
-and extension length field, it was deemed needlessly complex.  While there
-is a desire by current implementors to avoid change, the simplicity of the
-result should overcome implementor enertia.
-
-Furthermore, one criticism of continuations is that it requires 2 mechanisms
-be implemented depending on payload size. Having 2 length mechanisms, whilst
-simpler, would also suffers from this issue.
-
-It is also true that a 31 bit large frame length is also an arbitrary 
-limit to the size of a frame. However, it is beleived that 31 bits is
-sufficiently large to efficiently handle almost all concievable present
-and future use cases.   It would be possible to implement an unlimited
-size length field, but it is felt that this complexity is not worthwhile
-given the low probability of it being required.
-
-Note also, that as the maximum flow control window size is 31 bits, then
-there is no value in allowing data frames lengths larger than 31 bits.
 
 Frame Size Settings
 -------------------
-Two settings parameters have been proposed: SETTINGS_HEADER_FRAME_SIZE
+Two settings parameters are proposed: SETTINGS_HEADER_FRAME_SIZE
 for the maximum header size and SETTINGS_FRAME_SIZE for all other frames.
 
 The SETTINGS_HEADER_FRAME_SIZE parameter supports the current behaviour
@@ -144,7 +140,8 @@ to a client.  The server may initially send 4 x 16KB frames to consume the
 default stream flow control window, at which time it must wait for the client
 to send a WINDOW_UPDATE frame before continuing. When generating the 
 WINDOW_UPDATE frame, the client may have knowledge of:
- * The content-length header so it knows that the amount of data expected is large
+ * The content-length header so it knows that the amount of data expected 
+   is large are just slightly larger than a single frame.
  * The content-type header so it knows if the content has high priority
    in rendering the current page, or if the content is likely to include
    references to other resources.  
@@ -182,26 +179,63 @@ Minimal Compliance
 A minimally compliant implementation MUST handle the SETTING_FRAME_SIZE
 and SETTINGS_HEADER_SIZE and ensure that no frame sent exceeds the
 applicable limit.   However no implementation is required to send frames 
-at or near these limits and they may choose to use only the regular sized frames
-if they desire.
+at or near these limits when set above the default 16KB. 
 
-There is not requirement for an implementation to send or to handle the 
+There is no requirement for an implementation to send or to handle the 
 Max Frame Size in a WINDOW_UPDATE and it is allowable for it to be ignored
 if received.
 
 
+Anticipated Criticism
+--------------------
+
+> It is too late in the process to change the framing layer and to do
+> so after so much discussion is an implicit fail of the WG
+
+To not consider issues and proposal brought to the WG would be a fail of 
+the process.   This proposal is based on all the hard work to date done
+by the WG and contributors to identify issues and test solutions.
+
+> These issues can be handled in extensions.
+
+Optimising data transfers for large content could possibly be done in an
+extension, however:
+  * It is not yet clear if extensions will be a viable way to enhance the
+    http2 protocol. There are significant hurdle to overcome to deploy
+    extensions.
+  * Many of the issues are aimed at complexity and tuning of the core
+    protocol, and these cannot be addressed in an extension.
+  * It is asymmetric to support large headers with one mechanism and large
+    data with another.
+
+> The proposed header costs 2 extra bytes per frame
+
+There is a small data cost to adopt this proposal, however this is 
+mitigated as:
+  * The proposal may be able to reduce the number of frames needed
+    for some content, thus saving 8 bytes.  Whilst not likely to be
+    a 25% frame saving required to break even, it will still reduce
+    cost to below 2 bytes.
+  * There are options to have variable length headers or optional
+    extended headers that will preserve the semantics of this proposal
+    and keep an 8 byte header for small frames.  If the 2 byte cost
+    is considered prohibitive, then these alterations can be considered.
+
+> The header is 10 bytes long and not 32bit word aligned.
+
+Frames sent after arbitrary data will not be word aligned anyway.
+
+> 31 bits is also an arbitrary length
+
+It is true that a 31 bit large frame length is also an arbitrary 
+limit to the size of a frame. However, it is beleived that 31 bits is
+sufficiently large to efficiently handle almost all concievable present
+and future use cases.   It would be possible to implement an unlimited
+size length field, but it is felt that this complexity is not worthwhile
+given the low probability of it being required.
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+[1] http://lists.w3.org/Archives/Public/ietf-http-wg/2013AprJun/0926.html
+[2] http://httparchive.org/interesting.php
+[3] http://lists.w3.org/Archives/Public/ietf-http-wg/2014AprJun/1664.html
